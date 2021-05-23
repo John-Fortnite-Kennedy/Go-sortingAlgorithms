@@ -148,69 +148,44 @@ var dataPool = sync.Pool{
 
 // вам надо написать более быструю оптимальную этой функции
 func FastSearch(out io.Writer) {
-	file, _ := os.Open(filePath) // For read access.
-
-	var seenBrowsers []string
-	var writeUniq bool
-	var notSeenBefore bool
-	var isAndroid bool
-	var isMSIE bool
-
+	file, _ := os.Open(filePath)
 	in := bufio.NewScanner(file)
+	seenBrowsers := make(map[string]bool, 150)
+	foundUsers := new(bytes.Buffer)
+	users := make([]User, 0)
 
-	fmt.Fprintln(out, fmt.Sprintf("found users:"))
-
-	count := 0
 	for in.Scan() {
-		count ++
 		row := in.Bytes()
-
-		if bytes.Contains(row, []byte("Android")) == false && bytes.Contains(row, []byte("MSIE")) == false {
-			continue
+		user := User{}
+		err := user.UnmarshalJSON(row)
+		if err != nil {
+			panic(err)
 		}
+		users = append(users, user)
+	}
 
-		user := dataPool.Get().(*User)
-		easyjson.Unmarshal(row, user)
-
-		isAndroid = false
-		isMSIE = false
-
+	for i, user := range users {
+		isAndroid := false
+		isMSIE := false
 		for _, browser := range user.Browsers {
-			notSeenBefore = true
-			writeUniq = false
-
-			if strings.Contains(browser, "Android") {
+			if ok := strings.Contains(browser, "Android"); ok {
 				isAndroid = true
-				writeUniq = true
-			}
-
-			if strings.Contains(browser, "MSIE") {
-				isMSIE = true
-				writeUniq = true
-			}
-
-			if writeUniq == true {
-				for _, item := range seenBrowsers {
-					if item == browser {
-						notSeenBefore = false
-					}
+				if exists := seenBrowsers[browser]; !exists {
+					seenBrowsers[browser] = true
 				}
-
-				if notSeenBefore {
-					seenBrowsers = append(seenBrowsers, browser)
+			} else if ok := strings.Contains(browser, "MSIE"); ok {
+				isMSIE = true
+				if exists := seenBrowsers[browser]; !exists {
+					seenBrowsers[browser] = true
 				}
 			}
 		}
-
-		dataPool.Put(user)
 		if !(isAndroid && isMSIE) {
 			continue
 		}
-
-		email := strings.Replace(user.Email,  "@", " [at] ", -1)
-		fmt.Fprintln(out, fmt.Sprintf("[%d] %s <%s>", count - 1, user.Name, email))
+		email := strings.Replace(user.Email, "@", " [at] ", -1)
+		foundUsers.WriteString(fmt.Sprintf("[%d] %s <%s>\n", i, user.Name, email))
 	}
-
-
-	fmt.Fprintln(out, "\nTotal unique browsers", len(seenBrowsers))
+	fmt.Fprintln(out, "found users:\n"+foundUsers.String())
+	fmt.Fprintln(out, "Total unique browsers", len(seenBrowsers))
 }
