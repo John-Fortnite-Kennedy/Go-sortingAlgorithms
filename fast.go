@@ -153,6 +153,7 @@ func FastSearch(out io.Writer) {
 	seenBrowsers := make(map[string]bool, 150)
 	foundUsers := new(bytes.Buffer)
 	users := make([]User, 0)
+	var counter = 0
 
 	for in.Scan() {
 		row := in.Bytes()
@@ -164,7 +165,8 @@ func FastSearch(out io.Writer) {
 		users = append(users, user)
 	}
 
-	for i, user := range users {
+	for _, user := range users {
+		counter++
 		isAndroid := false
 		isMSIE := false
 		for _, browser := range user.Browsers {
@@ -184,7 +186,7 @@ func FastSearch(out io.Writer) {
 			continue
 		}
 		email := strings.Replace(user.Email, "@", " [at] ", -1)
-		foundUsers.WriteString(fmt.Sprintf("[%d] %s <%s>\n", i, user.Name, email))
+		foundUsers.WriteString(fmt.Sprintf("[%d] %s <%s>\n", counter-1, user.Name, email))
 	}
 	fmt.Fprintln(out, "found users:\n"+foundUsers.String())
 	fmt.Fprintln(out, "Total unique browsers", len(seenBrowsers))
